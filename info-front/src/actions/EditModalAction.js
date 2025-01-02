@@ -37,7 +37,6 @@ export const editModalInfoSwitch = (infoFlg) => ({
 // second flg need change name to outputflg.
 // Frank Lee
 
-
 export const editModalOnChange = (data, inputFlg) => ({
     type: "EDIT_MODAL_ONCHANGE",
     payload: {
