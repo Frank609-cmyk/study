@@ -32,10 +32,6 @@ export const editModalInfoSwitch = (infoFlg) => ({
     },
 });
 
-// this function have two flag and we just use one to do the circle and another one not used. 
-// to solve this delete the first flag.
-// second flg need change name to outputflg.
-// Frank Lee
 
 export const editModalOnChange = (data, inputFlg) => ({
     type: "EDIT_MODAL_ONCHANGE",
