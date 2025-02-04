@@ -24,7 +24,7 @@ const AccountForm = () => {
   // 初期渲染 静态：
   useEffect(() => {
     search();
-  },[isOpen]);
+  }, [isOpen]);
 
   // 更新事件
   const onChange = (value, inputFlg) => {
@@ -109,7 +109,7 @@ const AccountForm = () => {
           />
         </Grid>
         <Grid item xs={12}>
-        <Button variant="contained" color="primary" onClick={search} style={{ marginBottom: '10px' }} >
+          <Button variant="contained" color="primary" onClick={search} style={{ marginBottom: '10px' }} >
             查询
           </Button>
           <Button variant="contained" color="primary" onClick={editMoldalOpen} style={{ marginBottom: '10px', marginLeft: "5px" }} >
