@@ -13,28 +13,143 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send GitHub notification to Lark
+      - name: Send GitHub card to Lark
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            TITLE="${{ github.event.pull_request.title }}"
-            URL="${{ github.event.pull_request.html_url }}"
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_URL="${{ github.event.pull_request.html_url }}"
             ACTION="${{ github.event.action }}"
             SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
             TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
-            TEXT="🚀 GitHub PR 通知\n仓库：${{ github.repository }}\n动作：${ACTION}\n标题：${TITLE}\n分支：${SOURCE_BRANCH} → ${TARGET_BRANCH}\n作者：${{ github.actor }}\n链接：${URL}"
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            TITLE="${{ github.event.head_commit.message }}"
-            URL="${{ github.event.head_commit.url }}"
-            TEXT="📦 GitHub Push 通知\n仓库：${{ github.repository }}\n分支：${{ github.ref_name }}\n作者：${{ github.actor }}\nCommit：${TITLE}\n链接：${URL}"
-          else
-            TEXT="🧪 GitHub Actions 手动测试成功\n仓库：${{ github.repository }}\n作者：${{ github.actor }}"
-          fi
+            AUTHOR="${{ github.actor }}"
+            REPO="${{ github.repository }}"
+            MERGED="${{ github.event.pull_request.merged }}"
+            COMMITS="${{ github.event.pull_request.commits }}"
+            CHANGED_FILES="${{ github.event.pull_request.changed_files }}"
+            ADDITIONS="${{ github.event.pull_request.additions }}"
+            DELETIONS="${{ github.event.pull_request.deletions }}"
 
-          curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"msg_type\": \"text\",
-            \"content\": {
-              \"text\": \"$TEXT\"
-            }
-          }"
+            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"config\": {
+                  \"wide_screen_mode\": true
+                },
+                \"header\": {
+                  \"template\": \"blue\",
+                  \"title\": {
+                    \"tag\": \"plain_text\",
+                    \"content\": \"🚀 GitHub PR 通知\"
+                  }
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**仓库：** ${REPO}\\n**标题：** ${PR_TITLE}\\n**动作：** ${ACTION}\\n**作者：** ${AUTHOR}\"
+                    }
+                  },
+                  {
+                    \"tag\": \"hr\"
+                  },
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**分支：** ${SOURCE_BRANCH} → ${TARGET_BRANCH}\\n**是否已 Merge：** ${MERGED}\\n**Commit 数：** ${COMMITS}\\n**变更文件数：** ${CHANGED_FILES}\\n**代码变更：** +${ADDITIONS} / -${DELETIONS}\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {
+                          \"tag\": \"plain_text\",
+                          \"content\": \"打开 PR\"
+                        },
+                        \"type\": \"primary\",
+                        \"url\": \"${PR_URL}\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            COMMIT_MSG="${{ github.event.head_commit.message }}"
+            COMMIT_URL="${{ github.event.head_commit.url }}"
+            BRANCH="${{ github.ref_name }}"
+            AUTHOR="${{ github.actor }}"
+            REPO="${{ github.repository }}"
+
+            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"config\": {
+                  \"wide_screen_mode\": true
+                },
+                \"header\": {
+                  \"template\": \"green\",
+                  \"title\": {
+                    \"tag\": \"plain_text\",
+                    \"content\": \"📦 GitHub Push 通知\"
+                  }
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**仓库：** ${REPO}\\n**分支：** ${BRANCH}\\n**作者：** ${AUTHOR}\\n**Commit：** ${COMMIT_MSG}\"
+                    }
+                  },
+                  {
+                    \"tag\": \"action\",
+                    \"actions\": [
+                      {
+                        \"tag\": \"button\",
+                        \"text\": {
+                          \"tag\": \"plain_text\",
+                          \"content\": \"打开 Commit\"
+                        },
+                        \"type\": \"primary\",
+                        \"url\": \"${COMMIT_URL}\"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"
+
+          else
+            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"msg_type\": \"interactive\",
+              \"card\": {
+                \"header\": {
+                  \"template\": \"purple\",
+                  \"title\": {
+                    \"tag\": \"plain_text\",
+                    \"content\": \"🧪 GitHub Actions 测试成功\"
+                  }
+                },
+                \"elements\": [
+                  {
+                    \"tag\": \"div\",
+                    \"text\": {
+                      \"tag\": \"lark_md\",
+                      \"content\": \"**仓库：** ${{ github.repository }}\\n**作者：** ${{ github.actor }}\\nLark 卡片消息发送成功。\"
+                    }
+                  }
+                ]
+              }
+            }"
+          fi
