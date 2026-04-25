@@ -2,19 +2,39 @@ name: Notify Lark
 
 on:
   workflow_dispatch:
+  pull_request:
+    types: [opened, closed, reopened, synchronize]
+  push:
+    branches:
+      - dev
 
 jobs:
   notify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Test Lark
+      - name: Send GitHub notification to Lark
         run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            TITLE="${{ github.event.pull_request.title }}"
+            URL="${{ github.event.pull_request.html_url }}"
+            ACTION="${{ github.event.action }}"
+            SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
+            TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+            TEXT="🚀 GitHub PR 通知\n仓库：${{ github.repository }}\n动作：${ACTION}\n标题：${TITLE}\n分支：${SOURCE_BRANCH} → ${TARGET_BRANCH}\n作者：${{ github.actor }}\n链接：${URL}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            TITLE="${{ github.event.head_commit.message }}"
+            URL="${{ github.event.head_commit.url }}"
+            TEXT="📦 GitHub Push 通知\n仓库：${{ github.repository }}\n分支：${{ github.ref_name }}\n作者：${{ github.actor }}\nCommit：${TITLE}\n链接：${URL}"
+          else
+            TEXT="🧪 GitHub Actions 手动测试成功\n仓库：${{ github.repository }}\n作者：${{ github.actor }}"
+          fi
+
           curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
           -H "Content-Type: application/json" \
-          -d '{
-            "msg_type": "text",
-            "content": {
-              "text": "测试成功 🚀"
+          -d "{
+            \"msg_type\": \"text\",
+            \"content\": {
+              \"text\": \"$TEXT\"
             }
-          }'
+          }"
