@@ -2,154 +2,169 @@ name: Notify Lark
 
 on:
   workflow_dispatch:
-  pull_request:
-    types: [opened, closed, reopened, synchronize]
   push:
     branches:
-      - dev
+      - main
+  pull_request:
+    types: [opened, closed, reopened, synchronize]
 
 jobs:
   notify:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Send GitHub card to Lark
+      - name: Send Lark card
+        env:
+          LARK_WEBHOOK: ${{ secrets.LARK_WEBHOOK }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          REF_NAME: ${{ github.ref_name }}
+
+          # PR
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_COMMITS: ${{ github.event.pull_request.commits }}
+          PR_CHANGED_FILES: ${{ github.event.pull_request.changed_files }}
+          PR_ADDITIONS: ${{ github.event.pull_request.additions }}
+          PR_DELETIONS: ${{ github.event.pull_request.deletions }}
+
+          # push
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.event.head_commit.url }}
+
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            PR_TITLE="${{ github.event.pull_request.title }}"
-            PR_URL="${{ github.event.pull_request.html_url }}"
-            ACTION="${{ github.event.action }}"
-            SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
-            TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
-            AUTHOR="${{ github.actor }}"
-            REPO="${{ github.repository }}"
-            MERGED="${{ github.event.pull_request.merged }}"
-            COMMITS="${{ github.event.pull_request.commits }}"
-            CHANGED_FILES="${{ github.event.pull_request.changed_files }}"
-            ADDITIONS="${{ github.event.pull_request.additions }}"
-            DELETIONS="${{ github.event.pull_request.deletions }}"
+          python3 << 'PY'
+          import os
+          import json
+          import urllib.request
 
-            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"msg_type\": \"interactive\",
-              \"card\": {
-                \"config\": {
-                  \"wide_screen_mode\": true
-                },
-                \"header\": {
-                  \"template\": \"blue\",
-                  \"title\": {
-                    \"tag\": \"plain_text\",
-                    \"content\": \"🚀 GitHub PR 通知\"
-                  }
-                },
-                \"elements\": [
-                  {
-                    \"tag\": \"div\",
-                    \"text\": {
-                      \"tag\": \"lark_md\",
-                      \"content\": \"**仓库：** ${REPO}\\n**标题：** ${PR_TITLE}\\n**动作：** ${ACTION}\\n**作者：** ${AUTHOR}\"
-                    }
+          webhook = os.environ["LARK_WEBHOOK"]
+          event = os.environ.get("EVENT_NAME", "")
+
+          def send(card):
+              data = json.dumps({
+                  "msg_type": "interactive",
+                  "card": card
+              }).encode("utf-8")
+
+              req = urllib.request.Request(
+                  webhook,
+                  data=data,
+                  headers={"Content-Type": "application/json"},
+                  method="POST"
+              )
+
+              with urllib.request.urlopen(req) as resp:
+                  print(resp.read().decode())
+
+          if event == "pull_request":
+              card = {
+                  "config": {"wide_screen_mode": True},
+                  "header": {
+                      "template": "blue",
+                      "title": {"tag": "plain_text", "content": "🚀 GitHub PR 通知"}
                   },
-                  {
-                    \"tag\": \"hr\"
-                  },
-                  {
-                    \"tag\": \"div\",
-                    \"text\": {
-                      \"tag\": \"lark_md\",
-                      \"content\": \"**分支：** ${SOURCE_BRANCH} → ${TARGET_BRANCH}\\n**是否已 Merge：** ${MERGED}\\n**Commit 数：** ${COMMITS}\\n**变更文件数：** ${CHANGED_FILES}\\n**代码变更：** +${ADDITIONS} / -${DELETIONS}\"
-                    }
-                  },
-                  {
-                    \"tag\": \"action\",
-                    \"actions\": [
+                  "elements": [
                       {
-                        \"tag\": \"button\",
-                        \"text\": {
-                          \"tag\": \"plain_text\",
-                          \"content\": \"打开 PR\"
-                        },
-                        \"type\": \"primary\",
-                        \"url\": \"${PR_URL}\"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }"
-
-          elif [ "${{ github.event_name }}" = "push" ]; then
-            COMMIT_MSG="${{ github.event.head_commit.message }}"
-            COMMIT_URL="${{ github.event.head_commit.url }}"
-            BRANCH="${{ github.ref_name }}"
-            AUTHOR="${{ github.actor }}"
-            REPO="${{ github.repository }}"
-
-            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"msg_type\": \"interactive\",
-              \"card\": {
-                \"config\": {
-                  \"wide_screen_mode\": true
-                },
-                \"header\": {
-                  \"template\": \"green\",
-                  \"title\": {
-                    \"tag\": \"plain_text\",
-                    \"content\": \"📦 GitHub Push 通知\"
-                  }
-                },
-                \"elements\": [
-                  {
-                    \"tag\": \"div\",
-                    \"text\": {
-                      \"tag\": \"lark_md\",
-                      \"content\": \"**仓库：** ${REPO}\\n**分支：** ${BRANCH}\\n**作者：** ${AUTHOR}\\n**Commit：** ${COMMIT_MSG}\"
-                    }
-                  },
-                  {
-                    \"tag\": \"action\",
-                    \"actions\": [
+                          "tag": "div",
+                          "text": {
+                              "tag": "lark_md",
+                              "content": (
+                                  f"**仓库：** {os.environ.get('REPO')}\n"
+                                  f"**标题：** {os.environ.get('PR_TITLE')}\n"
+                                  f"**动作：** {os.environ.get('EVENT_ACTION')}\n"
+                                  f"**作者：** {os.environ.get('ACTOR')}"
+                              )
+                          }
+                      },
+                      {"tag": "hr"},
                       {
-                        \"tag\": \"button\",
-                        \"text\": {
-                          \"tag\": \"plain_text\",
-                          \"content\": \"打开 Commit\"
-                        },
-                        \"type\": \"primary\",
-                        \"url\": \"${COMMIT_URL}\"
+                          "tag": "div",
+                          "text": {
+                              "tag": "lark_md",
+                              "content": (
+                                  f"**分支：** {os.environ.get('PR_HEAD')} → {os.environ.get('PR_BASE')}\n"
+                                  f"**是否已 Merge：** {os.environ.get('PR_MERGED')}\n"
+                                  f"**Commit 数：** {os.environ.get('PR_COMMITS')}\n"
+                                  f"**变更文件数：** {os.environ.get('PR_CHANGED_FILES')}\n"
+                                  f"**代码变更：** +{os.environ.get('PR_ADDITIONS')} / -{os.environ.get('PR_DELETIONS')}"
+                              )
+                          }
+                      },
+                      {
+                          "tag": "action",
+                          "actions": [
+                              {
+                                  "tag": "button",
+                                  "text": {"tag": "plain_text", "content": "打开 PR"},
+                                  "type": "primary",
+                                  "url": os.environ.get("PR_URL")
+                              }
+                          ]
                       }
-                    ]
-                  }
-                ]
+                  ]
               }
-            }"
+              send(card)
 
-          else
-            curl -X POST "${{ secrets.LARK_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"msg_type\": \"interactive\",
-              \"card\": {
-                \"header\": {
-                  \"template\": \"purple\",
-                  \"title\": {
-                    \"tag\": \"plain_text\",
-                    \"content\": \"🧪 GitHub Actions 测试成功\"
-                  }
-                },
-                \"elements\": [
-                  {
-                    \"tag\": \"div\",
-                    \"text\": {
-                      \"tag\": \"lark_md\",
-                      \"content\": \"**仓库：** ${{ github.repository }}\\n**作者：** ${{ github.actor }}\\nLark 卡片消息发送成功。\"
-                    }
-                  }
-                ]
+          elif event == "push":
+              card = {
+                  "config": {"wide_screen_mode": True},
+                  "header": {
+                      "template": "green",
+                      "title": {"tag": "plain_text", "content": "📦 GitHub Push 通知"}
+                  },
+                  "elements": [
+                      {
+                          "tag": "div",
+                          "text": {
+                              "tag": "lark_md",
+                              "content": (
+                                  f"**仓库：** {os.environ.get('REPO')}\n"
+                                  f"**分支：** {os.environ.get('REF_NAME')}\n"
+                                  f"**作者：** {os.environ.get('ACTOR')}\n"
+                                  f"**Commit：** {os.environ.get('COMMIT_MSG')}"
+                              )
+                          }
+                      },
+                      {
+                          "tag": "action",
+                          "actions": [
+                              {
+                                  "tag": "button",
+                                  "text": {"tag": "plain_text", "content": "打开 Commit"},
+                                  "type": "primary",
+                                  "url": os.environ.get("COMMIT_URL")
+                              }
+                          ]
+                      }
+                  ]
               }
-            }"
-          fi
+              send(card)
+
+          else:
+              card = {
+                  "header": {
+                      "template": "purple",
+                      "title": {"tag": "plain_text", "content": "🧪 测试成功"}
+                  },
+                  "elements": [
+                      {
+                          "tag": "div",
+                          "text": {
+                              "tag": "lark_md",
+                              "content": (
+                                  f"**仓库：** {os.environ.get('REPO')}\n"
+                                  f"**作者：** {os.environ.get('ACTOR')}\n"
+                                  "Lark 通知正常 ✅"
+                              )
+                          }
+                      }
+                  ]
+              }
+              send(card)
+          PY
